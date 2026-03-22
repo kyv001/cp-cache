@@ -5,6 +5,7 @@ import ffmpeg
 
 DEFAULT_CACHE_PATH = pathlib.Path("~/.config/SPlayer/DataCache/music").expanduser()
 def concat_tracks(tracklist: list[pathlib.Path], output_file: pathlib.Path):
+    # Copied from `track-sorter` (github.com/kyv001/track-sorter, MIT License)
     try:
         # 为每个输入文件明确选择音频流
         audio_streams = []
@@ -26,6 +27,7 @@ def concat_tracks(tracklist: list[pathlib.Path], output_file: pathlib.Path):
 
 def cli():
     print("CP Cache CLI")
+    # ----- Cache Path -----
     print(f"Default cache path: {DEFAULT_CACHE_PATH}")
     ask_path = input("Confirm? (Y/enter path): ").strip()
     if not ask_path or ask_path.lower() == "y":
@@ -37,7 +39,7 @@ def cli():
             print("Invalid cache path")
             return 1
     print(f"Using cache path: {cache_path}")
-    
+    # ----- Target Path -----
     target_path = input("Enter target path: ").strip()
     try:
         target_path = pathlib.Path(target_path).expanduser().resolve()
@@ -46,40 +48,43 @@ def cli():
         return 1
     os.makedirs(target_path, exist_ok=True)
     print(f"Using target path: {target_path}")
-
+    # ----- Main Loop: Match tracks and cached files -----
     count: int = 0
     moving_files: dict[pathlib.Path, pathlib.Path] = {}
     while True:
         try:
-            song_id = int(input("Enter song ID: ").strip())
+            track_id = int(input("Enter track ID (^C or ^D to exit): ").strip())
         except ValueError:
-            print("Invalid song ID")
+            print("Invalid track ID")
             continue
-        except (KeyboardInterrupt, EOFError):
-            print("Exiting")
+        except (KeyboardInterrupt, EOFError): # ^C or ^D
             break
-        matched_fnames = [*filter(lambda x: x.startswith(f"{song_id}_"), os.listdir(cache_path))]
+        matched_fnames = [*filter(lambda x: x.startswith(f"{track_id}_"), os.listdir(cache_path))]
         if not matched_fnames:
-            print(f"No files found for song ID {song_id}")
+            print(f"No files found for track ID {track_id}")
             continue
-        if len(matched_fnames) > 1:
-            print(f"Multiple files found for song ID {song_id}: {matched_fnames}")
-            choice = input(f"Enter file index (0-{len(matched_fnames)-1}): ").strip()
-            try:
-                choice = int(choice)
-                fname = matched_fnames[choice]
-            except (IndexError, ValueError):
-                print("Invalid file index")
-                continue
+        if len(matched_fnames) > 1: # Might be matching multiple files with the same track ID but different quality
+            print(f"Multiple files found for track ID {track_id}: {matched_fnames}")
+            while True: # Don't ask for track ID again in case of invalid file index
+                choice = input(f"Enter file index (0-{len(matched_fnames)-1}): ").strip()
+                try:
+                    choice = int(choice)
+                    fname = matched_fnames[choice]
+                except (IndexError, ValueError):
+                    print("Invalid file index")
+                    continue
+                break
         else:
-            fname = matched_fnames[0]
+            fname = matched_fnames[0] # Only one file found, use it
         
         print(f"Using file: {fname}")
         count += 1
-        target_fname = input(f"Enter target file name (without extension): ").strip() + ".mp3"
+        target_fname = input(f"Enter target file name (without extension): ").strip() + ".mp3"  # Most cached audio seem to be mp3.
+                                                                                                # Some might be wav, flac, etc.,
+                                                                                                # but don't bother detecting it.
         print(f"{fname} -> {target_fname}")
         moving_files[cache_path / fname] = target_path / target_fname
-
+    # ----- Concatenate Tracks -----
     ask_number = input(f"Would you like to add track id prefix? (Y/n): ").strip()
     if not ask_number.lower() == "n":
         for i, (fname, target) in enumerate(moving_files.items()):

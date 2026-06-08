@@ -13,11 +13,16 @@ def concat_tracks(tracklist: list[pathlib.Path], output_file: pathlib.Path):
             input_file = ffmpeg.input(str(track.resolve()))
             # 明确选择第一个音频流
             audio_streams.append(input_file['a:0'])
-        
+
         # 使用ffmpeg.concat连接所有音频流，并设置专辑名元数据
         (
             ffmpeg.concat(*audio_streams, v=0, a=1)
-            .output(str(output_file.resolve()), metadata=f"title={output_file.stem}")
+            .output(
+                str(output_file.resolve()),
+                metadata=f"title={output_file.stem}",
+                format="mp3",
+                audio_bitrate=320
+            )
             .run()
         )
     except Exception as e:
@@ -76,16 +81,16 @@ def cli():
                 break
         else:
             fname = matched_fnames[0] # Only one file found, use it
-        
+
         print(f"Using file: {fname}")
         count += 1
-        target_fname = input(f"Enter target file name (without extension): ").strip() + ".mp3"  # Most cached audio seem to be mp3.
-                                                                                                # Some might be wav, flac, etc.,
-                                                                                                # but don't bother detecting it.
+        target_fname = input("Enter target file name (without extension): ").strip() + ".mp3"  # Most cached audio seem to be mp3.
+                                                                                               # Some might be wav, flac, etc.,
+                                                                                               # but don't bother detecting it.
         print(f"{fname} -> {target_fname}")
         moving_files[cache_path / fname] = target_path / target_fname
     # ----- Concatenate Tracks -----
-    ask_number = input(f"Would you like to add track id prefix? (Y/n): ").strip()
+    ask_number = input("Would you like to add track id prefix? (Y/n): ").strip()
     if not ask_number.lower() == "n":
         for i, (fname, target) in enumerate(moving_files.items()):
             prefix = str(i + 1).zfill(len(str(count)))
